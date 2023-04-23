@@ -4,6 +4,8 @@ import Head from "next/head";
 import Link from "next/link";
 import { Tab } from "@headlessui/react";
 import Masonry from "react-masonry-css";
+import nodeFetch from "node-fetch";
+import lqip from "lqip-modern";
 
 // import styles
 import "lightgallery/css/lightgallery.css";
@@ -15,14 +17,31 @@ import lgThumbnail from "lightgallery/plugins/thumbnail";
 import lgZoom from "lightgallery/plugins/zoom";
 
 import bgImg from "/public/photography-bg.jpeg";
-import ocean1 from "/public/ocean-1.jpeg";
+/* import ocean1 from "/public/ocean-1.jpeg";
 import ocean2 from "/public/ocean-2.jpeg";
 import ocean3 from "/public/ocean-3.jpeg";
 import ocean4 from "/public/ocean-4.jpeg";
-import ocean5 from "/public/ocean-5.jpeg";
+import ocean5 from "/public/ocean-5.jpeg"; */
 import { useRef } from "react";
 import { LightGallery } from "lightgallery/lightgallery";
 import LightGalleryComponent from "lightgallery/react";
+import { GetStaticProps } from "next";
+import { createApi } from "unsplash-js";
+import { type } from "os";
+
+/* type CreateApi = ReturnType<typeof createApi>;
+type SearchPhotos = CreateApi["search"];
+type GetPhotos = SearchPhotos["getPhotos"];
+type PhotoResponse = Awaited<ReturnType<GetPhotos>>; */
+
+type Photo = {
+  src: string;
+  thumb: string;
+  width: number;
+  height: number;
+  alt: string;
+  blurDataURL: string;
+};
 
 const inter = Expletus_Sans({
   subsets: ["latin"],
@@ -43,11 +62,38 @@ const tabs = [
   },
 ];
 
-const images = [ocean1, ocean2, ocean3, ocean4, ocean5];
+type HomeProps = {
+  oceans: Photo[];
+  forests: Photo[];
+};
 
-export default function Home() {
-  const ligthboxRef = useRef<LightGallery | null>(null);
+export const getStaticProps: GetStaticProps<HomeProps> = async () => {
+  const unsplash = createApi({
+    accessKey: process.env.UNSPLASH_ACCESS_KEY!,
+    fetch: nodeFetch as unknown as typeof fetch,
+  });
 
+  /*  const oceans = await getImages(unsplash, "oceans");
+  const forests = await getImages(unsplash, "forests"); */
+
+  const [oceans, forests] = await Promise.all([
+    getImages(unsplash, "oceans"),
+    getImages(unsplash, "forests"),
+  ]);
+  /* const mappedOceans: Photo[]=oceans.map(photo => ({
+  <src:ocean></src:ocean>
+ })) */
+
+  /* const images = [ocean1, ocean2, ocean3, ocean4, ocean5]; */
+  return {
+    props: {
+      oceans,
+      forests,
+    },
+  };
+};
+
+export default function Home({ oceans, forests }: HomeProps) {
   return (
     <div className="h-full overflow-auto ">
       <Head>
@@ -75,7 +121,7 @@ export default function Home() {
       <main className="relative pt-[110px] z-20">
         <div className=" flex flex-col items-center h-full">
           <Tab.Group>
-            <Tab.List className="flex items-center gap-12">
+            <Tab.List className=" bg-black bg-opacity-30 hover:bg-black fixed flex items-center gap-12 z-30 rounded-3xl px-3 py-2">
               {tabs.map((tab) => (
                 <Tab key={tab.key} className="p-2">
                   {({ selected }) => (
@@ -90,50 +136,16 @@ export default function Home() {
                 </Tab>
               ))}
             </Tab.List>
-            <Tab.Panels className="h-full max-w-[1000px] w-full p-2 sm:p-4 my-6">
-              <Tab.Panel className="">
-                <Masonry
-                  breakpointCols={3}
-                  className="flex gap-4"
-                  columnClassName=""
-                >
-                  {images.map((image, i) => (
-                    <Image
-                      key={image.src}
-                      src={image}
-                      alt="ocean"
-                      className="my-4 hover:opacity-80 cursor-pointer"
-                      placeholder="blur"
-                      onClick={() => {
-                        ligthboxRef.current?.openGallery(i);
-                      }}
-                    />
-                  ))}
-
-                  {/* <img src="/ocean-1.jpeg" alt="ocean-1" className="my-4" />
-                  <img src="/ocean-2.jpeg" alt="ocean-2" className="my-4" />
-                  <img src="/ocean-3.jpeg" alt="ocean-3" className="my-4" />
-                  <img src="/ocean-4.jpeg" alt="ocean-4" className="my-4" />
-                  <img src="/ocean-5.jpeg" alt="ocean-5" className="my-4" /> */}
-                </Masonry>
-
-                <LightGalleryComponent
-                  onInit={(ref) => {
-                    if (ref) {
-                      ligthboxRef.current = ref.instance;
-                    }
-                  }}
-                  speed={500}
-                  plugins={[lgThumbnail, lgZoom]}
-                  dynamic
-                  dynamicEl={images.map((image) => ({
-                    src: image.src,
-                    thumb: image.src,
-                  }))}
-                />
+            <Tab.Panels className="h-full max-w-[1000px] w-full p-2 sm:p-4 my-12">
+              <Tab.Panel className="overflow-auto">
+                <Gallery photos={[...oceans, ...forests]} />
               </Tab.Panel>
-              <Tab.Panel className="">Oceans</Tab.Panel>
-              <Tab.Panel className="">Forests</Tab.Panel>
+              <Tab.Panel className="">
+                <Gallery photos={oceans} />
+              </Tab.Panel>
+              <Tab.Panel className="">
+                <Gallery photos={forests} />
+              </Tab.Panel>
             </Tab.Panels>
           </Tab.Group>
         </div>
@@ -143,4 +155,115 @@ export default function Home() {
       </footer>
     </div>
   );
+}
+
+type GalleryProps = {
+  photos: Photo[];
+};
+
+function Gallery({ photos }: GalleryProps) {
+  const ligthboxRef = useRef<LightGallery | null>(null);
+  return (
+    <>
+      <Masonry breakpointCols={3} className="flex gap-4" columnClassName="">
+        {photos.map((photo, i) => (
+          <div className="relative">
+            <Image
+              key={photo.src}
+              src={photo.src}
+              width={photo.width}
+              height={photo.height}
+              alt={photo.alt}
+              className="my-4"
+              placeholder="blur"
+              blurDataURL={photo.blurDataURL}
+              /* onClick={() => {
+                ligthboxRef.current?.openGallery(i);
+              }} */
+            />
+            <div
+              className="absolute w-full h-full inset-0 bg-transparent hover:bg-stone-900 hover:bg-opacity-10 cursor-pointer"
+              onClick={() => {
+                ligthboxRef.current?.openGallery(i);
+              }}
+            ></div>
+          </div>
+        ))}
+      </Masonry>
+
+      <LightGalleryComponent
+        onInit={(ref) => {
+          if (ref) {
+            ligthboxRef.current = ref.instance;
+          }
+        }}
+        speed={500}
+        plugins={[lgThumbnail, lgZoom]}
+        dynamic
+        dynamicEl={photos.map((photo) => ({
+          src: photo.src,
+          thumb: photo.src,
+        }))}
+      />
+    </>
+  );
+}
+
+async function getImages(
+  cli: ReturnType<typeof createApi>,
+  query: string
+): Promise<Photo[]> {
+  const photos = await cli.search.getPhotos({
+    query,
+    perPage: 20,
+  });
+
+  /* const forests = await cli.search.getPhotos({
+    query: "forests",
+    perPage: 20,
+  });
+ */
+  const mappedPhotos: Photo[] = [];
+  if (photos.type === "success") {
+    const photosArr = photos.response.results.map((photo, i) => ({
+      src: photo.urls.full,
+      thumb: photo.urls.thumb,
+      width: photo.width,
+      height: photo.height,
+      alt: photo.alt_description ?? `ocean-img-${i}`,
+    }));
+    const photoArrWithDataUrl: Photo[] = [];
+    for (const photo of photosArr) {
+      const blurDataURL = await getDataUrl(photo.src);
+      photoArrWithDataUrl.push({ ...photo, blurDataURL });
+    }
+    mappedPhotos.push(...photoArrWithDataUrl);
+  } else {
+    console.error("Could not get ocean photos");
+  }
+
+  /* const mappedForests: Photo[] = [];
+  if (forests.type === "success") {
+    mappedForests.push(
+      ...forests.response.results.map((forest, i) => ({
+        src: forest.urls.full,
+        thumb: forest.urls.thumb,
+        width: forest.width,
+        height: forest.height,
+        alt: forest.alt_description ?? `forest-img-${i}`,
+      }))
+    );
+  } else {
+    console.error("Could not get forest photos");
+  } */
+  return mappedPhotos;
+}
+
+async function getDataUrl(url: string) {
+  const imgData = await fetch(url);
+
+  const arrayBufferData = await imgData.arrayBuffer();
+  const lqipData = await lqip(Buffer.from(arrayBufferData));
+
+  return lqipData.metadata.dataURIBase64;
 }
