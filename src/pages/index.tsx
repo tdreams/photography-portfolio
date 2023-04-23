@@ -23,6 +23,7 @@ import ocean3 from "/public/ocean-3.jpeg";
 import ocean4 from "/public/ocean-4.jpeg";
 import ocean5 from "/public/ocean-5.jpeg"; */
 import { useRef } from "react";
+import { useMemo } from "react";
 import { LightGallery } from "lightgallery/lightgallery";
 import LightGalleryComponent from "lightgallery/react";
 import { GetStaticProps } from "next";
@@ -41,6 +42,7 @@ type Photo = {
   height: number;
   alt: string;
   blurDataURL: string;
+  likes: number;
 };
 
 const inter = Expletus_Sans({
@@ -90,10 +92,15 @@ export const getStaticProps: GetStaticProps<HomeProps> = async () => {
       oceans,
       forests,
     },
+    revalidate: 10,
   };
 };
 
 export default function Home({ oceans, forests }: HomeProps) {
+  const allPhotos = useMemo(() => {
+    const all = [...oceans, ...forests];
+    return all.sort((a, b) => b.likes - a.likes);
+  }, [oceans, forests]);
   return (
     <div className="h-full overflow-auto ">
       <Head>
@@ -138,7 +145,7 @@ export default function Home({ oceans, forests }: HomeProps) {
             </Tab.List>
             <Tab.Panels className="h-full max-w-[1000px] w-full p-2 sm:p-4 my-12">
               <Tab.Panel className="overflow-auto">
-                <Gallery photos={[...oceans, ...forests]} />
+                <Gallery photos={allPhotos} />
               </Tab.Panel>
               <Tab.Panel className="">
                 <Gallery photos={oceans} />
@@ -167,9 +174,8 @@ function Gallery({ photos }: GalleryProps) {
     <>
       <Masonry breakpointCols={3} className="flex gap-4" columnClassName="">
         {photos.map((photo, i) => (
-          <div className="relative">
+          <div className="relative" key={photo.src}>
             <Image
-              key={photo.src}
               src={photo.src}
               width={photo.width}
               height={photo.height}
@@ -213,9 +219,10 @@ async function getImages(
   cli: ReturnType<typeof createApi>,
   query: string
 ): Promise<Photo[]> {
-  const photos = await cli.search.getPhotos({
+  /* const photos = await cli.search.getPhotos */
+  const photos = await cli.photos.getRandom({
     query,
-    perPage: 20,
+    count: 20,
   });
 
   /* const forests = await cli.search.getPhotos({
@@ -225,12 +232,17 @@ async function getImages(
  */
   const mappedPhotos: Photo[] = [];
   if (photos.type === "success") {
-    const photosArr = photos.response.results.map((photo, i) => ({
+    /* const photosArr = photos.response.results.map((photo, i) */
+    const responseArr = Array.isArray(photos.response)
+      ? photos.response
+      : [photos.response];
+    const photosArr = responseArr.map((photo, i) => ({
       src: photo.urls.full,
       thumb: photo.urls.thumb,
       width: photo.width,
       height: photo.height,
       alt: photo.alt_description ?? `ocean-img-${i}`,
+      likes: photo.likes,
     }));
     const photoArrWithDataUrl: Photo[] = [];
     for (const photo of photosArr) {
